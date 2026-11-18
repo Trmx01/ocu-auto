@@ -11,4 +11,4 @@ Basta digitare `opencode` e il sistema:
 ## Installazione
 
 ```bash
-curl -sL https://raw.githubusercontent.com/TUO-USER/ocu-auto/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/Trmx01/ocu-auto/main/install.sh | bash
