@@ -1,0 +1,66 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# ocu-daemon — supervisore background
+export PREFIX=/data/data/com.termux/files/usr
+export SSL_CERT_FILE="$PREFIX/etc/tls/cert.pem"
+export PATH="$HOME/.local/bin:$PREFIX/bin:$PATH"
+
+OCU_HOME="$HOME/.opencode-unlimited"
+SOCKS_PORT=1819
+HTTP_PORT=1820
+LOG_FILE="$HOME/.local/share/opencode/log/opencode.log"
+WGCF_BIN="$PREFIX/bin/wgcf"
+PROFILE="$OCU_HOME/wgcf-profile.conf"
+
+mkdir -p "$OCU_HOME"
+touch "$LOG_FILE"
+
+if ! grep -q '1.1.1.1' "$PREFIX/etc/resolv.conf" 2>/dev/null; then
+    printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$PREFIX/etc/resolv.conf"
+fi
+
+ensure_profile() {
+    [ -s "$PROFILE" ] && return 0
+    cd "$OCU_HOME" || return 1
+    if [ -s "$OCU_HOME/license.key" ]; then
+        proot -b "$PREFIX/etc/resolv.conf:/etc/resolv.conf" "$WGCF_BIN" register --accept-tos --license-key "$(cat "$OCU_HOME/license.key")" >/dev/null 2>&1
+    else
+        proot -b "$PREFIX/etc/resolv.conf:/etc/resolv.conf" "$WGCF_BIN" register --accept-tos >/dev/null 2>&1
+    fi
+    [ -f wgcf-account.toml ] && proot -b "$PREFIX/etc/resolv.conf:/etc/resolv.conf" "$WGCF_BIN" generate >/dev/null 2>&1
+    [ -s wgcf-profile.conf ] && cp wgcf-profile.conf "$PROFILE"
+}
+
+start_proxy() {
+    pgrep -f "wireproxy -c" >/dev/null && return 0
+    ensure_profile || return 1
+    cp "$PROFILE" "$OCU_HOME/wireproxy.conf"
+    cat >> "$OCU_HOME/wireproxy.conf" <<EOF
+
+[Socks5]
+BindAddress = 127.0.0.1:$SOCKS_PORT
+
+[http]
+BindAddress = 127.0.0.1:$HTTP_PORT
+EOF
+    nohup wireproxy -c "$OCU_HOME/wireproxy.conf" > "$OCU_HOME/wp.log" 2>&1 &
+}
+
+rotate() {
+    pkill -f "wireproxy -c" 2>/dev/null
+    rm -f "$PROFILE"
+    start_proxy
+    if tmux has-session -t opencode 2>/dev/null; then
+        sleep 2
+        tmux send-keys -t opencode "continue" Enter
+    fi
+}
+
+start_proxy
+
+# Monitoraggio log per auto-rotate
+tail -n0 -F "$LOG_FILE" | while read -r line; do
+    if echo "$line" | grep -qiE '429|usage limit|free limit|quota|UnsupportedProxyProtocol|ConnectionRefused'; then
+        rotate
+    fi
+done
+

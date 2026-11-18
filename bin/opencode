@@ -1,0 +1,21 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Wrapper che fa partire OpenCode con proxy, tmux e daemon
+export PREFIX=/data/data/com.termux/files/usr
+
+# Se siamo già dentro tmux, esegui il binario reale
+if [ -n "$TMUX" ]; then
+    exec "$PREFIX/bin/opencode-real" "$@"
+fi
+
+# Avvia il daemon se non è attivo
+if ! pgrep -f "ocu-daemon" >/dev/null 2>&1; then
+    nohup ~/.local/bin/ocu-daemon >/dev/null 2>&1 &
+    sleep 1
+fi
+
+# Crea la sessione tmux con le variabili d'ambiente forzate
+tmux kill-session -t opencode 2>/dev/null
+tmux new-session -d -s opencode "export HTTP_PROXY=http://127.0.0.1:1820; export HTTPS_PROXY=http://127.0.0.1:1820; export BUN_CONFIG_PROXY=http://127.0.0.1:1820; export NO_PROXY=localhost,127.0.0.1,::1; $PREFIX/bin/opencode-real $*"
+
+sleep 1
+tmux attach -t opencode

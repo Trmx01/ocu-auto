@@ -1,0 +1,11 @@
+#!/data/data/com.termux/files/usr/bin/bash
+export PREFIX=/data/data/com.termux/files/usr
+export SSL_CERT_FILE="$PREFIX/etc/tls/cert.pem"
+OCU_HOME="$HOME/.opencode-unlimited"
+PROFILE="$OCU_HOME/wgcf-profile.conf"
+
+echo "[*] Rotazione manuale..."
+pkill -f "wireproxy -c" 2>/dev/null
+rm -f "$PROFILE"
+echo "[*] Fatto. Riavvia opencode."
+
